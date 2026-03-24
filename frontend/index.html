@@ -16,12 +16,6 @@
   <div id="output" class="mt-10"></div>
 
   <script>
-    function getActionValue(actions, type) {
-      if (!actions) return 0;
-      const match = actions.find(a => a.action_type === type);
-      return match ? match.value : 0;
-    }
-
     async function loadReport() {
       const month = document.getElementById("month").value;
       const output = document.getElementById("output");
@@ -38,56 +32,21 @@
         }
 
         const meta = data.meta_ads || {};
-        const leads = getActionValue(meta.actions, "lead");
-        const linkClicks = getActionValue(meta.actions, "link_click");
-        const landingPageViews = getActionValue(meta.actions, "landing_page_view");
 
         output.innerHTML = `
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">Month</h2>
-              <p class="text-2xl font-bold">${data.requested_month || "-"}</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">Spend</h2>
-              <p class="text-2xl font-bold">${meta.spend || 0}</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">Impressions</h2>
-              <p class="text-2xl font-bold">${meta.impressions || 0}</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">Clicks</h2>
-              <p class="text-2xl font-bold">${meta.clicks || 0}</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">CTR</h2>
-              <p class="text-2xl font-bold">${meta.ctr || 0}%</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">CPC</h2>
-              <p class="text-2xl font-bold">${meta.cpc || 0}</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">Leads</h2>
-              <p class="text-2xl font-bold">${leads}</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">Link Clicks</h2>
-              <p class="text-2xl font-bold">${linkClicks}</p>
-            </div>
-
-            <div class="bg-gray-800 p-4 rounded">
-              <h2 class="text-sm text-gray-400">Landing Page Views</h2>
-              <p class="text-2xl font-bold">${landingPageViews}</p>
-            </div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Amount Spent</h2><p class="text-2xl font-bold">${meta.amount_spent ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Impressions</h2><p class="text-2xl font-bold">${meta.impressions ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Reach</h2><p class="text-2xl font-bold">${meta.reach ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Link Clicks</h2><p class="text-2xl font-bold">${meta.link_clicks ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Landing Page Views</h2><p class="text-2xl font-bold">${meta.landing_page_views ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">CTR</h2><p class="text-2xl font-bold">${meta.ctr ?? 0}%</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Adds to Cart</h2><p class="text-2xl font-bold">${meta.adds_to_cart ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Checkouts</h2><p class="text-2xl font-bold">${meta.checkouts ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchases</h2><p class="text-2xl font-bold">${meta.purchases ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchase Conversion Value</h2><p class="text-2xl font-bold">${meta.purchase_conversion_value ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchase ROAS</h2><p class="text-2xl font-bold">${meta.purchase_roas ?? 0}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Cost per Purchase</h2><p class="text-2xl font-bold">${meta.cost_per_purchase ?? 0}</p></div>
           </div>
         `;
       } catch (error) {
