@@ -2,12 +2,17 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import requests
 import os
+import json
 
 app = Flask(__name__)
 CORS(app)
 
 META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN")
 AD_ACCOUNT_ID = "act_3178253445534981"
+
+GOOGLE_ACCESS_TOKEN = os.getenv("GOOGLE_ACCESS_TOKEN")
+GOOGLE_DEV_TOKEN = os.getenv("GOOGLE_DEV_TOKEN")
+GOOGLE_CUSTOMER_ID = "4370593557"
 
 
 def get_action_value(actions, action_type):
@@ -55,18 +60,20 @@ def home():
 def get_report():
     month = request.args.get("month")
 
-    if not META_ACCESS_TOKEN:
-        return jsonify({
-            "error": "META_ACCESS_TOKEN is missing in Render environment variables"
-        }), 500
-
     if not month:
         return jsonify({
             "error": "Month is required in YYYY-MM format"
         }), 400
 
     try:
-        # Monthly summary request
+        # -------------------------
+        # META SUMMARY
+        # -------------------------
+        if not META_ACCESS_TOKEN:
+            return jsonify({
+                "error": "META_ACCESS_TOKEN is missing in Render environment variables"
+            }), 500
+
         summary_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
         summary_params = {
             "fields": "spend,impressions,reach,ctr,actions,action_values,purchase_roas,date_start,date_stop",
@@ -119,7 +126,9 @@ def get_report():
         purchase_roas_value = get_purchase_roas(purchase_roas)
         cost_per_purchase = round(spend / purchases, 2) if purchases > 0 else 0
 
-        # Campaign-level request
+        # -------------------------
+        # META CAMPAIGNS
+        # -------------------------
         campaign_data = []
 
         campaign_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
@@ -174,6 +183,97 @@ def get_report():
                 "meta_response": campaign_json
             }), campaign_response.status_code
 
+        # -------------------------
+        # GOOGLE SUMMARY + CAMPAIGNS
+        # -------------------------
+        if not GOOGLE_ACCESS_TOKEN or not GOOGLE_DEV_TOKEN:
+            return jsonify({
+                "error": "GOOGLE_ACCESS_TOKEN or GOOGLE_DEV_TOKEN is missing in Render environment variables"
+            }), 500
+
+        start_date = f"{month}-01"
+        end_date = f"{month}-31"
+
+        google_query = (
+            "SELECT "
+            "campaign.name, "
+            "metrics.cost_micros, "
+            "metrics.impressions, "
+            "metrics.clicks, "
+            "metrics.ctr, "
+            "metrics.conversions, "
+            "metrics.conversions_value "
+            f"FROM campaign "
+            f"WHERE segments.date BETWEEN '{start_date}' AND '{end_date}' "
+            "AND metrics.impressions > 0"
+        )
+
+        google_headers = {
+            "Authorization": f"Bearer {GOOGLE_ACCESS_TOKEN}",
+            "developer-token": GOOGLE_DEV_TOKEN,
+            "Content-Type": "application/json"
+        }
+
+        google_body = {
+            "query": google_query
+        }
+
+        google_response = requests.post(
+            f"https://googleads.googleapis.com/v23/customers/{GOOGLE_CUSTOMER_ID}/googleAds:search",
+            headers=google_headers,
+            data=json.dumps(google_body)
+        )
+
+        google_json = google_response.json()
+
+        if google_response.status_code != 200:
+            return jsonify({
+                "error": "Google Ads API request failed",
+                "google_response": google_json
+            }), google_response.status_code
+
+        google_campaigns = []
+        google_total_spend = 0
+        google_total_impressions = 0
+        google_total_clicks = 0
+        google_total_conversions = 0
+        google_total_conversion_value = 0
+
+        for row in google_json.get("results", []):
+            campaign_name = row.get("campaign", {}).get("name", "")
+            metrics = row.get("metrics", {})
+
+            amount_spent = round(float(metrics.get("costMicros", 0)) / 1000000, 2)
+            impressions = int(metrics.get("impressions", 0))
+            link_clicks = int(metrics.get("clicks", 0))
+            ctr = round(float(metrics.get("ctr", 0)) * 100, 2)
+            purchases = round(float(metrics.get("conversions", 0)), 2)
+            purchase_conversion_value = round(float(metrics.get("conversionsValue", 0)), 2)
+            purchase_roas = round(purchase_conversion_value / amount_spent, 2) if amount_spent > 0 else 0
+            cost_per_purchase = round(amount_spent / purchases, 2) if purchases > 0 else 0
+
+            google_total_spend += amount_spent
+            google_total_impressions += impressions
+            google_total_clicks += link_clicks
+            google_total_conversions += purchases
+            google_total_conversion_value += purchase_conversion_value
+
+            google_campaigns.append({
+                "campaign_name": campaign_name,
+                "amount_spent": amount_spent,
+                "impressions": impressions,
+                "link_clicks": link_clicks,
+                "ctr": ctr,
+                "purchases": purchases,
+                "purchase_conversion_value": purchase_conversion_value,
+                "purchase_roas": purchase_roas,
+                "cost_per_purchase": cost_per_purchase
+            })
+
+        google_summary_ctr = round((google_total_clicks / google_total_impressions) * 100, 2) if google_total_impressions > 0 else 0
+        google_summary_roas = round(google_total_conversion_value / google_total_spend, 2) if google_total_spend > 0 else 0
+        google_summary_cpp = round(google_total_spend / google_total_conversions, 2) if google_total_conversions > 0 else 0
+
         return jsonify({
             "requested_month": month,
             "meta_ads": {
@@ -190,7 +290,18 @@ def get_report():
                 "purchase_roas": purchase_roas_value,
                 "cost_per_purchase": cost_per_purchase
             },
-            "meta_campaigns": campaign_data
+            "meta_campaigns": campaign_data,
+            "google_ads": {
+                "amount_spent": round(google_total_spend, 2),
+                "impressions": google_total_impressions,
+                "link_clicks": google_total_clicks,
+                "ctr": google_summary_ctr,
+                "purchases": round(google_total_conversions, 2),
+                "purchase_conversion_value": round(google_total_conversion_value, 2),
+                "purchase_roas": google_summary_roas,
+                "cost_per_purchase": google_summary_cpp
+            },
+            "google_campaigns": google_campaigns
         })
 
     except Exception as e:
