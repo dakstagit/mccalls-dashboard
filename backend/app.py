@@ -116,7 +116,56 @@ def get_report():
         purchase_roas_value = get_purchase_roas(purchase_roas)
         cost_per_purchase = round(spend / purchases, 2) if purchases > 0 else 0
 
-        return jsonify({
+                campaign_data = []
+
+        campaign_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
+        campaign_params = {
+            "fields": "campaign_name,spend,impressions,reach,ctr,actions,action_values,purchase_roas,date_start,date_stop",
+            "level": "campaign",
+            "time_range": f"{{'since':'{month}-01','until':'{month}-31'}}",
+            "access_token": META_ACCESS_TOKEN
+        }
+
+        campaign_response = requests.get(campaign_url, params=campaign_params)
+        campaign_json = campaign_response.json()
+
+        if campaign_response.status_code == 200:
+            for row in campaign_json.get("data", []):
+                row_actions = row.get("actions", [])
+                row_action_values = row.get("action_values", [])
+                row_purchase_roas = row.get("purchase_roas", [])
+
+                row_spend = float(row.get("spend", 0))
+                row_impressions = int(float(row.get("impressions", 0)))
+                row_reach = int(float(row.get("reach", 0)))
+                row_ctr = float(row.get("ctr", 0))
+
+                row_link_clicks = get_action_value(row_actions, "link_click")
+                row_landing_page_views = get_action_value(row_actions, "landing_page_view")
+                row_adds_to_cart = get_action_value(row_actions, "add_to_cart")
+                row_checkouts = get_action_value(row_actions, "initiate_checkout")
+                row_purchases = get_action_value(row_actions, "purchase")
+                row_purchase_conversion_value = get_action_value_from_values(row_action_values, "purchase")
+                row_purchase_roas_value = get_purchase_roas(row_purchase_roas)
+                row_cost_per_purchase = round(row_spend / row_purchases, 2) if row_purchases > 0 else 0
+
+                campaign_data.append({
+                    "campaign_name": row.get("campaign_name", ""),
+                    "amount_spent": row_spend,
+                    "impressions": row_impressions,
+                    "reach": row_reach,
+                    "link_clicks": row_link_clicks,
+                    "landing_page_views": row_landing_page_views,
+                    "ctr": row_ctr,
+                    "adds_to_cart": row_adds_to_cart,
+                    "checkouts": row_checkouts,
+                    "purchases": row_purchases,
+                    "purchase_conversion_value": row_purchase_conversion_value,
+                    "purchase_roas": row_purchase_roas_value,
+                    "cost_per_purchase": row_cost_per_purchase
+                })
+
+                return jsonify({
             "requested_month": month,
             "meta_ads": {
                 "amount_spent": spend,
@@ -131,7 +180,8 @@ def get_report():
                 "purchase_conversion_value": purchase_conversion_value,
                 "purchase_roas": purchase_roas_value,
                 "cost_per_purchase": cost_per_purchase
-            }
+            },
+            "meta_campaigns": campaign_data
         })
 
     except Exception as e:
