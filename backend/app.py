@@ -60,32 +60,35 @@ def get_report():
             "error": "META_ACCESS_TOKEN is missing in Render environment variables"
         }), 500
 
-    url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
-
-    params = {
-        "fields": "spend,impressions,reach,ctr,actions,action_values,purchase_roas,date_start,date_stop",
-        "time_increment": "monthly",
-        "date_preset": "last_90d",
-        "access_token": META_ACCESS_TOKEN
-    }
+    if not month:
+        return jsonify({
+            "error": "Month is required in YYYY-MM format"
+        }), 400
 
     try:
-        response = requests.get(url, params=params)
-        data = response.json()
+        # Monthly summary request
+        summary_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
+        summary_params = {
+            "fields": "spend,impressions,reach,ctr,actions,action_values,purchase_roas,date_start,date_stop",
+            "time_increment": "monthly",
+            "date_preset": "last_90d",
+            "access_token": META_ACCESS_TOKEN
+        }
 
-        if response.status_code != 200:
+        summary_response = requests.get(summary_url, params=summary_params)
+        summary_json = summary_response.json()
+
+        if summary_response.status_code != 200:
             return jsonify({
-                "error": "Meta API request failed",
-                "meta_response": data
-            }), response.status_code
+                "error": "Meta summary API request failed",
+                "meta_response": summary_json
+            }), summary_response.status_code
 
         selected_month_data = None
-
-        if month:
-            for row in data.get("data", []):
-                if row.get("date_start", "").startswith(month):
-                    selected_month_data = row
-                    break
+        for row in summary_json.get("data", []):
+            if row.get("date_start", "").startswith(month):
+                selected_month_data = row
+                break
 
         if not selected_month_data:
             selected_month_data = {
@@ -116,7 +119,8 @@ def get_report():
         purchase_roas_value = get_purchase_roas(purchase_roas)
         cost_per_purchase = round(spend / purchases, 2) if purchases > 0 else 0
 
-                campaign_data = []
+        # Campaign-level request
+        campaign_data = []
 
         campaign_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
         campaign_params = {
@@ -164,8 +168,13 @@ def get_report():
                     "purchase_roas": row_purchase_roas_value,
                     "cost_per_purchase": row_cost_per_purchase
                 })
+        else:
+            return jsonify({
+                "error": "Meta campaign API request failed",
+                "meta_response": campaign_json
+            }), campaign_response.status_code
 
-                return jsonify({
+        return jsonify({
             "requested_month": month,
             "meta_ads": {
                 "amount_spent": spend,
