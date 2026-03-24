@@ -20,7 +20,7 @@
     async function loadReport() {
       const month = document.getElementById("month").value;
 
-      const res = await fetch("https://YOUR-BACKEND-URL/api/report?month=" + month);
+      const res = await fetch("https://mccalls-dashboard.onrender.com/api/report?month=" + month);
       const data = await res.json();
 
       document.getElementById("output").innerHTML =
