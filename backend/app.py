@@ -10,6 +10,42 @@ META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN")
 AD_ACCOUNT_ID = "act_3178253445534981"
 
 
+def get_action_value(actions, action_type):
+    if not actions:
+        return 0
+    for item in actions:
+        if item.get("action_type") == action_type:
+            try:
+                return float(item.get("value", 0))
+            except:
+                return 0
+    return 0
+
+
+def get_action_value_from_values(action_values, action_type):
+    if not action_values:
+        return 0
+    for item in action_values:
+        if item.get("action_type") == action_type:
+            try:
+                return float(item.get("value", 0))
+            except:
+                return 0
+    return 0
+
+
+def get_purchase_roas(purchase_roas):
+    if not purchase_roas:
+        return 0
+    for item in purchase_roas:
+        if item.get("action_type") in ["omni_purchase", "offsite_conversion.fb_pixel_purchase", "purchase"]:
+            try:
+                return float(item.get("value", 0))
+            except:
+                return 0
+    return 0
+
+
 @app.route("/")
 def home():
     return "McCalls Dashboard API is running"
@@ -27,7 +63,7 @@ def get_report():
     url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
 
     params = {
-        "fields": "spend,impressions,clicks,ctr,cpc,actions,purchase_roas,date_start,date_stop",
+        "fields": "spend,impressions,reach,ctr,actions,action_values,purchase_roas,date_start,date_stop",
         "time_increment": "monthly",
         "date_preset": "last_90d",
         "access_token": META_ACCESS_TOKEN
@@ -51,9 +87,51 @@ def get_report():
                     selected_month_data = row
                     break
 
+        if not selected_month_data:
+            selected_month_data = {
+                "spend": 0,
+                "impressions": 0,
+                "reach": 0,
+                "ctr": 0,
+                "actions": [],
+                "action_values": [],
+                "purchase_roas": []
+            }
+
+        spend = float(selected_month_data.get("spend", 0))
+        impressions = int(float(selected_month_data.get("impressions", 0)))
+        reach = int(float(selected_month_data.get("reach", 0)))
+        ctr = float(selected_month_data.get("ctr", 0))
+
+        actions = selected_month_data.get("actions", [])
+        action_values = selected_month_data.get("action_values", [])
+        purchase_roas = selected_month_data.get("purchase_roas", [])
+
+        link_clicks = get_action_value(actions, "link_click")
+        landing_page_views = get_action_value(actions, "landing_page_view")
+        adds_to_cart = get_action_value(actions, "add_to_cart")
+        checkouts = get_action_value(actions, "initiate_checkout")
+        purchases = get_action_value(actions, "purchase")
+        purchase_conversion_value = get_action_value_from_values(action_values, "purchase")
+        purchase_roas_value = get_purchase_roas(purchase_roas)
+        cost_per_purchase = round(spend / purchases, 2) if purchases > 0 else 0
+
         return jsonify({
             "requested_month": month,
-            "meta_ads": selected_month_data if selected_month_data else data.get("data", [])
+            "meta_ads": {
+                "amount_spent": spend,
+                "impressions": impressions,
+                "reach": reach,
+                "link_clicks": link_clicks,
+                "landing_page_views": landing_page_views,
+                "ctr": ctr,
+                "adds_to_cart": adds_to_cart,
+                "checkouts": checkouts,
+                "purchases": purchases,
+                "purchase_conversion_value": purchase_conversion_value,
+                "purchase_roas": purchase_roas_value,
+                "cost_per_purchase": cost_per_purchase
+            }
         })
 
     except Exception as e:
