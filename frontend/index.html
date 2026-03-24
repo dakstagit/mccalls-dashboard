@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>McCalls Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-10">
+
+  <h1 class="text-3xl mb-6">Monthly Report</h1>
+
+  <input id="month" type="month" class="text-black p-2 mb-4">
+
+  <button onclick="loadReport()" class="bg-yellow-400 text-black px-4 py-2">
+    Load Report
+  </button>
+
+  <div id="output" class="mt-10"></div>
+
+  <script>
+    async function loadReport() {
+      const month = document.getElementById("month").value;
+
+      const res = await fetch("https://YOUR-BACKEND-URL/api/report?month=" + month);
+      const data = await res.json();
+
+      document.getElementById("output").innerHTML =
+        "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+    }
+  </script>
+
+</body>
+</html>
