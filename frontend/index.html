@@ -16,6 +16,11 @@
   <div id="output" class="mt-10"></div>
 
   <script>
+    function formatNumber(value) {
+      if (value === null || value === undefined || value === "") return "0";
+      return Number(value).toLocaleString();
+    }
+
     async function loadReport() {
       const month = document.getElementById("month").value;
       const output = document.getElementById("output");
@@ -32,23 +37,69 @@
         }
 
         const meta = data.meta_ads || {};
+        const campaigns = data.meta_campaigns || [];
+
+        const campaignRows = campaigns.map(c => `
+          <tr class="border-b border-gray-700">
+            <td class="p-3">${c.campaign_name ?? ""}</td>
+            <td class="p-3">${formatNumber(c.amount_spent)}</td>
+            <td class="p-3">${formatNumber(c.impressions)}</td>
+            <td class="p-3">${formatNumber(c.reach)}</td>
+            <td class="p-3">${formatNumber(c.link_clicks)}</td>
+            <td class="p-3">${formatNumber(c.landing_page_views)}</td>
+            <td class="p-3">${formatNumber(c.ctr)}%</td>
+            <td class="p-3">${formatNumber(c.adds_to_cart)}</td>
+            <td class="p-3">${formatNumber(c.checkouts)}</td>
+            <td class="p-3">${formatNumber(c.purchases)}</td>
+            <td class="p-3">${formatNumber(c.purchase_conversion_value)}</td>
+            <td class="p-3">${formatNumber(c.purchase_roas)}</td>
+            <td class="p-3">${formatNumber(c.cost_per_purchase)}</td>
+          </tr>
+        `).join("");
 
         output.innerHTML = `
           <h2 class="text-xl font-semibold mb-4 text-yellow-400">Meta Ads</h2>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Amount Spent</h2><p class="text-2xl font-bold">${meta.amount_spent ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Impressions</h2><p class="text-2xl font-bold">${meta.impressions ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Reach</h2><p class="text-2xl font-bold">${meta.reach ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Link Clicks</h2><p class="text-2xl font-bold">${meta.link_clicks ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Landing Page Views</h2><p class="text-2xl font-bold">${meta.landing_page_views ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">CTR</h2><p class="text-2xl font-bold">${meta.ctr ?? 0}%</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Adds to Cart</h2><p class="text-2xl font-bold">${meta.adds_to_cart ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Checkouts</h2><p class="text-2xl font-bold">${meta.checkouts ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchases</h2><p class="text-2xl font-bold">${meta.purchases ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchase Conversion Value</h2><p class="text-2xl font-bold">${meta.purchase_conversion_value ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchase ROAS</h2><p class="text-2xl font-bold">${meta.purchase_roas ?? 0}</p></div>
-            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Cost per Purchase</h2><p class="text-2xl font-bold">${meta.cost_per_purchase ?? 0}</p></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Amount Spent</h2><p class="text-2xl font-bold">${formatNumber(meta.amount_spent)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Impressions</h2><p class="text-2xl font-bold">${formatNumber(meta.impressions)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Reach</h2><p class="text-2xl font-bold">${formatNumber(meta.reach)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Link Clicks</h2><p class="text-2xl font-bold">${formatNumber(meta.link_clicks)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Landing Page Views</h2><p class="text-2xl font-bold">${formatNumber(meta.landing_page_views)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">CTR</h2><p class="text-2xl font-bold">${formatNumber(meta.ctr)}%</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Adds to Cart</h2><p class="text-2xl font-bold">${formatNumber(meta.adds_to_cart)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Checkouts</h2><p class="text-2xl font-bold">${formatNumber(meta.checkouts)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchases</h2><p class="text-2xl font-bold">${formatNumber(meta.purchases)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchase Conversion Value</h2><p class="text-2xl font-bold">${formatNumber(meta.purchase_conversion_value)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Purchase ROAS</h2><p class="text-2xl font-bold">${formatNumber(meta.purchase_roas)}</p></div>
+            <div class="bg-gray-800 p-4 rounded"><h2 class="text-sm text-gray-400">Cost per Purchase</h2><p class="text-2xl font-bold">${formatNumber(meta.cost_per_purchase)}</p></div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-4 text-yellow-400">Meta Campaign Breakdown</h3>
+
+          <div class="overflow-x-auto">
+            <table class="min-w-full bg-gray-800 rounded text-sm">
+              <thead>
+                <tr class="border-b border-gray-600 text-left">
+                  <th class="p-3">Campaign</th>
+                  <th class="p-3">Spent</th>
+                  <th class="p-3">Impr.</th>
+                  <th class="p-3">Reach</th>
+                  <th class="p-3">Link Clicks</th>
+                  <th class="p-3">LP Views</th>
+                  <th class="p-3">CTR</th>
+                  <th class="p-3">ATC</th>
+                  <th class="p-3">Checkouts</th>
+                  <th class="p-3">Purchases</th>
+                  <th class="p-3">Conv. Value</th>
+                  <th class="p-3">ROAS</th>
+                  <th class="p-3">CPP</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${campaignRows}
+              </tbody>
+            </table>
           </div>
         `;
       } catch (error) {
