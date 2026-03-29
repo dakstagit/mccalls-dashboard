@@ -197,11 +197,13 @@ def campaign_highlights(campaigns):
             "worst_cpp": None
         }
 
-    best_roas = max(campaigns, key=lambda x: safe_float(x.get("purchase_roas", 0)))
-    most_purchases = max(campaigns, key=lambda x: safe_float(x.get("purchases", 0)))
-    highest_spend = max(campaigns, key=lambda x: safe_float(x.get("amount_spent", 0)))
+    valid_roas = [c for c in campaigns if safe_float(c.get("purchase_roas", 0)) > 0]
+    valid_purchases = [c for c in campaigns if safe_float(c.get("purchases", 0)) > 0]
+    valid_cpp = [c for c in campaigns if safe_float(c.get("purchases", 0)) > 0 and safe_float(c.get("cost_per_purchase", 0)) > 0]
 
-    valid_cpp = [c for c in campaigns if safe_float(c.get("purchases", 0)) > 0]
+    highest_spend = max(campaigns, key=lambda x: safe_float(x.get("amount_spent", 0))) if campaigns else None
+    best_roas = max(valid_roas, key=lambda x: safe_float(x.get("purchase_roas", 0))) if valid_roas else None
+    most_purchases = max(valid_purchases, key=lambda x: safe_float(x.get("purchases", 0))) if valid_purchases else None
     worst_cpp = max(valid_cpp, key=lambda x: safe_float(x.get("cost_per_purchase", 0))) if valid_cpp else None
 
     return {
@@ -221,6 +223,67 @@ def campaign_highlights(campaigns):
             "campaign_name": worst_cpp.get("campaign_name", ""),
             "value": round(safe_float(worst_cpp.get("cost_per_purchase", 0)), 2)
         } if worst_cpp else None
+    }
+
+def build_winners_losers(meta_campaigns, google_campaigns):
+    all_campaigns = []
+
+    for c in meta_campaigns:
+        row = c.copy()
+        row["platform"] = "Meta"
+        all_campaigns.append(row)
+
+    for c in google_campaigns:
+        row = c.copy()
+        row["platform"] = "Google"
+        all_campaigns.append(row)
+
+    winners = []
+    losers = []
+
+    strong_roas = sorted(
+        [c for c in all_campaigns if safe_float(c.get("purchase_roas", 0)) >= 4 and safe_float(c.get("purchases", 0)) > 0],
+        key=lambda x: (safe_float(x.get("purchase_roas", 0)), safe_float(x.get("purchases", 0))),
+        reverse=True
+    )
+
+    weak_campaigns = sorted(
+        [c for c in all_campaigns if safe_float(c.get("amount_spent", 0)) > 0 and safe_float(c.get("purchases", 0)) == 0],
+        key=lambda x: safe_float(x.get("amount_spent", 0)),
+        reverse=True
+    )
+
+    expensive_campaigns = sorted(
+        [c for c in all_campaigns if safe_float(c.get("purchases", 0)) > 0],
+        key=lambda x: safe_float(x.get("cost_per_purchase", 0)),
+        reverse=True
+    )
+
+    for c in strong_roas[:3]:
+        winners.append({
+            "platform": c.get("platform"),
+            "campaign_name": c.get("campaign_name", ""),
+            "reason": f"Strong efficiency with ROAS {round(safe_float(c.get('purchase_roas', 0)), 2)} and purchases {safe_float(c.get('purchases', 0))}."
+        })
+
+    for c in weak_campaigns[:2]:
+        losers.append({
+            "platform": c.get("platform"),
+            "campaign_name": c.get("campaign_name", ""),
+            "reason": f"Spent {round(safe_float(c.get('amount_spent', 0)), 2)} with no tracked purchases."
+        })
+
+    for c in expensive_campaigns[:1]:
+        if safe_float(c.get("cost_per_purchase", 0)) > 0:
+            losers.append({
+                "platform": c.get("platform"),
+                "campaign_name": c.get("campaign_name", ""),
+                "reason": f"High cost per purchase at {round(safe_float(c.get('cost_per_purchase', 0)), 2)}."
+            })
+
+    return {
+        "winners": winners[:3],
+        "losers": losers[:3]
     }
 
 
@@ -254,18 +317,17 @@ def build_key_takeaways(meta_summary, google_summary, meta_highlights, google_hi
 
     if google_highlights.get("best_roas"):
         takeaways.append(
-            f"Top Google efficiency driver: {google_highlights['best_roas']['campaign_name']} "
-            f"(ROAS {google_highlights['best_roas']['value']})."
+            f"Top Google campaign by efficiency was {google_highlights['best_roas']['campaign_name']} "
+            f"with ROAS {google_highlights['best_roas']['value']}."
         )
 
     if meta_highlights.get("best_roas"):
         takeaways.append(
-            f"Top Meta efficiency driver: {meta_highlights['best_roas']['campaign_name']} "
-            f"(ROAS {meta_highlights['best_roas']['value']})."
+            f"Top Meta campaign by efficiency was {meta_highlights['best_roas']['campaign_name']} "
+            f"with ROAS {meta_highlights['best_roas']['value']}."
         )
-
-    if safe_float(meta_summary.get("purchases", 0)) == 0 and safe_float(meta_summary.get("amount_spent", 0)) > 0:
-        takeaways.append("Meta generated spend without tracked purchases, so campaign quality should be reviewed.")
+    elif safe_float(meta_summary.get("purchases", 0)) == 0:
+        takeaways.append("Meta generated engagement but no tracked purchases this month, so direct-response contribution was limited.")
 
     return takeaways[:3]
 
@@ -273,25 +335,60 @@ def build_key_takeaways(meta_summary, google_summary, meta_highlights, google_hi
 def build_recommendations(meta_summary, google_summary, meta_campaigns, google_campaigns):
     recommendations = []
 
-    high_roas_google = [c for c in google_campaigns if safe_float(c.get("purchase_roas", 0)) >= 5]
-    weak_meta = [c for c in meta_campaigns if safe_float(c.get("amount_spent", 0)) > 0 and safe_float(c.get("purchases", 0)) == 0]
+    strong_google = sorted(
+        [c for c in google_campaigns if safe_float(c.get("purchase_roas", 0)) >= 5 and safe_float(c.get("purchases", 0)) > 0],
+        key=lambda x: safe_float(x.get("purchase_roas", 0)),
+        reverse=True
+    )
 
-    if high_roas_google:
-        recommendations.append("Consider increasing budget on high-ROAS Google campaigns to scale efficient conversions.")
+    weak_meta = sorted(
+        [c for c in meta_campaigns if safe_float(c.get("amount_spent", 0)) > 0 and safe_float(c.get("purchases", 0)) == 0],
+        key=lambda x: safe_float(x.get("amount_spent", 0)),
+        reverse=True
+    )
+
+    expensive_google = sorted(
+        [c for c in google_campaigns if safe_float(c.get("purchases", 0)) > 0],
+        key=lambda x: safe_float(x.get("cost_per_purchase", 0)),
+        reverse=True
+    )
+
+    if strong_google:
+        top = strong_google[0]
+        recommendations.append(
+            f"Protect and consider scaling {top.get('campaign_name')} because it is currently one of the strongest Google efficiency drivers."
+        )
+
+    if len(strong_google) > 1:
+        top2 = strong_google[1]
+        recommendations.append(
+            f"Test incremental budget into {top2.get('campaign_name')} if impression share or scale is being constrained."
+        )
 
     if weak_meta:
-        recommendations.append("Reduce or refresh Meta campaigns that are spending without producing purchases.")
+        top_weak_meta = weak_meta[0]
+        recommendations.append(
+            f"Review or reduce {top_weak_meta.get('campaign_name')} because it is spending without generating tracked purchases."
+        )
+
+    if expensive_google:
+        top_expensive = expensive_google[0]
+        if safe_float(top_expensive.get("cost_per_purchase", 0)) > 30:
+            recommendations.append(
+                f"Tighten efficiency on {top_expensive.get('campaign_name')} because cost per purchase is currently high."
+            )
 
     if safe_float(meta_summary.get("ctr", 0)) < 1.5:
-        recommendations.append("Meta CTR is soft; refresh creative and messaging to improve engagement quality.")
-
-    if safe_float(google_summary.get("cost_per_purchase", 0)) > 20:
-        recommendations.append("Google cost per purchase is elevated; review search terms, bids, and campaign structure.")
+        recommendations.append(
+            "Meta CTR is soft overall, so new creatives and stronger hooks should be tested next month."
+        )
 
     if not recommendations:
-        recommendations.append("Maintain allocation toward strongest campaigns while testing incremental creative and audience improvements.")
+        recommendations.append(
+            "Current account structure is stable; continue prioritising proven campaigns while testing incremental growth opportunities."
+        )
 
-    return recommendations[:4]
+    return recommendations[:5]
 
 
 def build_executive_summary(blended, meta_summary, google_summary):
@@ -629,6 +726,7 @@ def get_report():
 
         meta_highlights = campaign_highlights(meta_campaigns)
         google_highlights = campaign_highlights(google_campaigns)
+        winners_losers = build_winners_losers(meta_campaigns, google_campaigns)
 
         channel_roles = build_channel_role_summary(meta_summary, google_summary)
         takeaways = build_key_takeaways(meta_summary, google_summary, meta_highlights, google_highlights)
@@ -667,7 +765,8 @@ def get_report():
                 "commentary": commentary,
                 "channel_roles": channel_roles,
                 "key_takeaways": takeaways,
-                "recommendations": recommendations
+                "recommendations": recommendations,
+                "winners_losers": winners_losers
             },
 
             "meta": {
