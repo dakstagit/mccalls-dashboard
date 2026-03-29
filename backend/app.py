@@ -135,23 +135,23 @@ def get_report():
             "purchase_roas": []
         }
 
-        spend = float(selected_month_data.get("spend", 0))
-        impressions = int(float(selected_month_data.get("impressions", 0)))
-        reach = int(float(selected_month_data.get("reach", 0)))
-        ctr = float(selected_month_data.get("ctr", 0))
-
+        meta_spend = float(selected_month_data.get("spend", 0))
+        meta_impressions = int(float(selected_month_data.get("impressions", 0)))
+        meta_reach = int(float(selected_month_data.get("reach", 0)))
+        meta_ctr = float(selected_month_data.get("ctr", 0))
+        
         actions = selected_month_data.get("actions", [])
         action_values = selected_month_data.get("action_values", [])
         purchase_roas = selected_month_data.get("purchase_roas", [])
-
-        link_clicks = get_action_value(actions, "link_click")
-        landing_page_views = get_action_value(actions, "landing_page_view")
-        adds_to_cart = get_action_value(actions, "add_to_cart")
-        checkouts = get_action_value(actions, "initiate_checkout")
-        purchases = get_action_value(actions, "purchase")
-        purchase_conversion_value = get_action_value_from_values(action_values, "purchase")
-        purchase_roas_value = get_purchase_roas(purchase_roas)
-        cost_per_purchase = round(spend / purchases, 2) if purchases > 0 else 0
+        
+        meta_link_clicks = get_action_value(actions, "link_click")
+        meta_landing_page_views = get_action_value(actions, "landing_page_view")
+        meta_adds_to_cart = get_action_value(actions, "add_to_cart")
+        meta_checkouts = get_action_value(actions, "initiate_checkout")
+        meta_purchases = get_action_value(actions, "purchase")
+        meta_purchase_conversion_value = get_action_value_from_values(action_values, "purchase")
+        meta_purchase_roas_value = get_purchase_roas(purchase_roas)
+        meta_cost_per_purchase = round(meta_spend / meta_purchases, 2) if meta_purchases > 0 else 0
 
         # -------------------------
         # META CAMPAIGNS
@@ -304,18 +304,18 @@ def get_report():
         return jsonify({
             "requested_month": month,
             "meta_ads": {
-                "amount_spent": spend,
-                "impressions": impressions,
-                "reach": reach,
-                "link_clicks": link_clicks,
-                "landing_page_views": landing_page_views,
-                "ctr": ctr,
-                "adds_to_cart": adds_to_cart,
-                "checkouts": checkouts,
-                "purchases": purchases,
-                "purchase_conversion_value": purchase_conversion_value,
-                "purchase_roas": purchase_roas_value,
-                "cost_per_purchase": cost_per_purchase
+            "amount_spent": meta_spend,
+            "impressions": meta_impressions,
+            "reach": meta_reach,
+            "link_clicks": meta_link_clicks,
+            "landing_page_views": meta_landing_page_views,
+            "ctr": meta_ctr,
+            "adds_to_cart": meta_adds_to_cart,
+            "checkouts": meta_checkouts,
+            "purchases": meta_purchases,
+            "purchase_conversion_value": meta_purchase_conversion_value,
+            "purchase_roas": meta_purchase_roas_value,
+            "cost_per_purchase": meta_cost_per_purchase
             },
             "meta_campaigns": campaign_data,
             "google_ads": {
