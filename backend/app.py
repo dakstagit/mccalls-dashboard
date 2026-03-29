@@ -431,21 +431,6 @@ def fetch_google_data(month_str):
 
     google_access_token = get_google_access_token()
 
-    google_query = (
-        "SELECT "
-        "campaign.name, "
-        "metrics.cost_micros, "
-        "metrics.impressions, "
-        "metrics.clicks, "
-        "metrics.ctr, "
-        "metrics.conversions, "
-        "metrics.conversions_value, "
-        "segments.conversion_action_name "
-        f"FROM campaign "
-        f"WHERE segments.date BETWEEN '{start_date}' AND '{end_date}' "
-        "AND metrics.impressions > 0"
-    )
-
     google_headers = {
         "Authorization": f"Bearer {google_access_token}",
         "developer-token": GOOGLE_DEV_TOKEN,
@@ -455,38 +440,80 @@ def fetch_google_data(month_str):
     if GOOGLE_LOGIN_CUSTOMER_ID:
         google_headers["login-customer-id"] = GOOGLE_LOGIN_CUSTOMER_ID
 
-    google_body = {"query": google_query}
-
-    google_response = requests.post(
-        f"https://googleads.googleapis.com/v23/customers/{GOOGLE_CUSTOMER_ID}/googleAds:search",
-        headers=google_headers,
-        data=json.dumps(google_body)
+    # Query 1: traffic/cost metrics
+    google_query_main = (
+        "SELECT "
+        "campaign.name, "
+        "metrics.cost_micros, "
+        "metrics.impressions, "
+        "metrics.clicks, "
+        "metrics.ctr "
+        f"FROM campaign "
+        f"WHERE segments.date BETWEEN '{start_date}' AND '{end_date}' "
+        "AND metrics.impressions > 0"
     )
 
-    google_json = google_response.json()
+    main_response = requests.post(
+        f"https://googleads.googleapis.com/v23/customers/{GOOGLE_CUSTOMER_ID}/googleAds:search",
+        headers=google_headers,
+        data=json.dumps({"query": google_query_main})
+    )
 
-    if google_response.status_code != 200:
-        raise Exception(f"Google Ads API request failed: {google_json}")
+    main_json = main_response.json()
+
+    if main_response.status_code != 200:
+        raise Exception(f"Google Ads main query failed: {main_json}")
 
     campaign_totals = {}
 
-    for row in google_json.get("results", []):
+    for row in main_json.get("results", []):
+        campaign_name = row.get("campaign", {}).get("name", "")
+        metrics = row.get("metrics", {})
+
+        campaign_totals[campaign_name] = {
+            "campaign_name": campaign_name,
+            "amount_spent": round(safe_float(metrics.get("costMicros", 0)) / 1000000, 2),
+            "impressions": safe_int(metrics.get("impressions", 0)),
+            "link_clicks": safe_int(metrics.get("clicks", 0)),
+            "ctr": round(safe_float(metrics.get("ctr", 0)) * 100, 2),
+            "purchases": 0,
+            "purchase_conversion_value": 0
+        }
+
+    # Query 2: purchase-only conversion rows
+    google_query_purchase = (
+        "SELECT "
+        "campaign.name, "
+        "segments.conversion_action_name, "
+        "metrics.conversions, "
+        "metrics.conversions_value "
+        f"FROM campaign "
+        f"WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'"
+    )
+
+    purchase_response = requests.post(
+        f"https://googleads.googleapis.com/v23/customers/{GOOGLE_CUSTOMER_ID}/googleAds:search",
+        headers=google_headers,
+        data=json.dumps({"query": google_query_purchase})
+    )
+
+    purchase_json = purchase_response.json()
+
+    if purchase_response.status_code != 200:
+        raise Exception(f"Google Ads purchase query failed: {purchase_json}")
+
+    for row in purchase_json.get("results", []):
         campaign_name = row.get("campaign", {}).get("name", "")
         metrics = row.get("metrics", {})
         conversion_action_name = row.get("segments", {}).get("conversionActionName", "") or ""
 
-        amount_spent = round(safe_float(metrics.get("costMicros", 0)) / 1000000, 2)
-        impressions = safe_int(metrics.get("impressions", 0))
-        link_clicks = safe_int(metrics.get("clicks", 0))
-        ctr = round(safe_float(metrics.get("ctr", 0)) * 100, 2)
-
         if campaign_name not in campaign_totals:
             campaign_totals[campaign_name] = {
                 "campaign_name": campaign_name,
-                "amount_spent": amount_spent,
-                "impressions": impressions,
-                "link_clicks": link_clicks,
-                "ctr": ctr,
+                "amount_spent": 0,
+                "impressions": 0,
+                "link_clicks": 0,
+                "ctr": 0,
                 "purchases": 0,
                 "purchase_conversion_value": 0
             }
