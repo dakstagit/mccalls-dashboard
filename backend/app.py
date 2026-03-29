@@ -10,9 +10,12 @@ CORS(app)
 META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN")
 AD_ACCOUNT_ID = "act_3178253445534981"
 
-GOOGLE_ACCESS_TOKEN = os.getenv("GOOGLE_ACCESS_TOKEN")
 GOOGLE_DEV_TOKEN = os.getenv("GOOGLE_DEV_TOKEN")
-GOOGLE_CUSTOMER_ID = "4370593557"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN")
+GOOGLE_LOGIN_CUSTOMER_ID = os.getenv("GOOGLE_LOGIN_CUSTOMER_ID")
+GOOGLE_CUSTOMER_ID = os.getenv("GOOGLE_CUSTOMER_ID")
 
 
 def get_action_value(actions, action_type):
@@ -50,6 +53,26 @@ def get_purchase_roas(purchase_roas):
                 return 0
     return 0
 
+def get_google_access_token():
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET or not GOOGLE_REFRESH_TOKEN:
+        raise Exception("Missing GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, or GOOGLE_REFRESH_TOKEN")
+
+    token_response = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "refresh_token": GOOGLE_REFRESH_TOKEN,
+            "grant_type": "refresh_token"
+        }
+    )
+
+    token_json = token_response.json()
+
+    if token_response.status_code != 200:
+        raise Exception(f"Google token refresh failed: {token_json}")
+
+    return token_json.get("access_token")
 
 @app.route("/")
 def home():
@@ -186,10 +209,12 @@ def get_report():
         # -------------------------
         # GOOGLE SUMMARY + CAMPAIGNS
         # -------------------------
-        if not GOOGLE_ACCESS_TOKEN or not GOOGLE_DEV_TOKEN:
+        if not GOOGLE_DEV_TOKEN or not GOOGLE_CUSTOMER_ID:
             return jsonify({
-                "error": "GOOGLE_ACCESS_TOKEN or GOOGLE_DEV_TOKEN is missing in Render environment variables"
+                "error": "GOOGLE_DEV_TOKEN or GOOGLE_CUSTOMER_ID is missing in Render environment variables"
             }), 500
+    
+        google_access_token = get_google_access_token()
 
         start_date = f"{month}-01"
         
@@ -213,8 +238,9 @@ def get_report():
         )
 
         google_headers = {
-            "Authorization": f"Bearer {GOOGLE_ACCESS_TOKEN}",
+            "Authorization": f"Bearer {google_access_token}",
             "developer-token": GOOGLE_DEV_TOKEN,
+            "login-customer-id": GOOGLE_LOGIN_CUSTOMER_ID,
             "Content-Type": "application/json"
         }
 
