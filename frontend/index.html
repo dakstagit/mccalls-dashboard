@@ -167,6 +167,9 @@
       const comparison = overview.comparison || {};
       const channelRoles = overview.channel_roles || {};
       const commentary = overview.commentary || {};
+      const winnersLosers = overview.winners_losers || {};
+      const winners = winnersLosers.winners || [];
+      const losers = winnersLosers.losers || [];
 
       document.getElementById("overview-section").innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
@@ -228,6 +231,32 @@
             ${(overview.recommendations || []).map(item => `<li>${item}</li>`).join("")}
           </ul>
         </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Winners</h2>
+          <ul class="space-y-3 text-slate-300">
+            ${winners.map(item => `
+              <li class="border-b border-slate-800 pb-3">
+                <div class="font-semibold">${item.platform}: ${item.campaign_name}</div>
+                <div class="text-sm text-slate-400">${item.reason}</div>
+              </li>
+            `).join("")}
+          </ul>
+        </div>
+      
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Losers / Watchlist</h2>
+          <ul class="space-y-3 text-slate-300">
+            ${losers.map(item => `
+              <li class="border-b border-slate-800 pb-3">
+                <div class="font-semibold">${item.platform}: ${item.campaign_name}</div>
+                <div class="text-sm text-slate-400">${item.reason}</div>
+              </li>
+            `).join("")}
+          </ul>
+        </div>
+      </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
