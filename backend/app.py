@@ -3,6 +3,7 @@ from flask_cors import CORS
 import requests
 import os
 import json
+import calendar
 
 app = Flask(__name__)
 CORS(app)
@@ -46,12 +47,17 @@ def get_purchase_roas(purchase_roas):
     if not purchase_roas:
         return 0
     for item in purchase_roas:
-        if item.get("action_type") in ["omni_purchase", "offsite_conversion.fb_pixel_purchase", "purchase"]:
+        if item.get("action_type") in [
+            "omni_purchase",
+            "offsite_conversion.fb_pixel_purchase",
+            "purchase"
+        ]:
             try:
                 return float(item.get("value", 0))
             except:
                 return 0
     return 0
+
 
 def get_google_access_token():
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET or not GOOGLE_REFRESH_TOKEN:
@@ -74,6 +80,7 @@ def get_google_access_token():
 
     return token_json.get("access_token")
 
+
 @app.route("/")
 def home():
     return "McCalls Dashboard API is running"
@@ -88,6 +95,11 @@ def get_report():
             "error": "Month is required in YYYY-MM format"
         }), 400
 
+    start_date = f"{month}-01"
+    year, month_num = map(int, month.split("-"))
+    last_day = calendar.monthrange(year, month_num)[1]
+    end_date = f"{month}-{last_day:02d}"
+
     try:
         # -------------------------
         # META SUMMARY
@@ -99,9 +111,8 @@ def get_report():
 
         summary_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
         summary_params = {
-            "fields": "spend,impressions,reach,ctr,actions,action_values,purchase_roas,date_start,date_stop",
-            "time_increment": "monthly",
-            "date_preset": "last_90d",
+            "fields": "spend,impressions,reach,ctr,actions,action_values,purchase_roas",
+            "time_range": f"{{'since':'{start_date}','until':'{end_date}'}}",
             "access_token": META_ACCESS_TOKEN
         }
 
@@ -114,22 +125,15 @@ def get_report():
                 "meta_response": summary_json
             }), summary_response.status_code
 
-        selected_month_data = None
-        for row in summary_json.get("data", []):
-            if row.get("date_start", "").startswith(month):
-                selected_month_data = row
-                break
-
-        if not selected_month_data:
-            selected_month_data = {
-                "spend": 0,
-                "impressions": 0,
-                "reach": 0,
-                "ctr": 0,
-                "actions": [],
-                "action_values": [],
-                "purchase_roas": []
-            }
+        selected_month_data = summary_json.get("data", [{}])[0] if summary_json.get("data") else {
+            "spend": 0,
+            "impressions": 0,
+            "reach": 0,
+            "ctr": 0,
+            "actions": [],
+            "action_values": [],
+            "purchase_roas": []
+        }
 
         spend = float(selected_month_data.get("spend", 0))
         impressions = int(float(selected_month_data.get("impressions", 0)))
@@ -158,7 +162,7 @@ def get_report():
         campaign_params = {
             "fields": "campaign_name,spend,impressions,reach,ctr,actions,action_values,purchase_roas,date_start,date_stop",
             "level": "campaign",
-            "time_range": f"{{'since':'{month}-01','until':'{month}-31'}}",
+            "time_range": f"{{'since':'{start_date}','until':'{end_date}'}}",
             "access_token": META_ACCESS_TOKEN
         }
 
@@ -213,15 +217,8 @@ def get_report():
             return jsonify({
                 "error": "GOOGLE_DEV_TOKEN or GOOGLE_CUSTOMER_ID is missing in Render environment variables"
             }), 500
-    
-        google_access_token = get_google_access_token()
 
-        start_date = f"{month}-01"
-        
-        import calendar
-        year, month_num = map(int, month.split("-"))
-        last_day = calendar.monthrange(year, month_num)[1]
-        end_date = f"{month}-{last_day:02d}"
+        google_access_token = get_google_access_token()
 
         google_query = (
             "SELECT "
