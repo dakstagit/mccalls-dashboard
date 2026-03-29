@@ -4,175 +4,227 @@
   <title>McCalls Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white p-10">
-  <h1 class="text-3xl mb-6">Monthly Report</h1>
+<body class="bg-slate-950 text-white min-h-screen">
+  <div class="max-w-7xl mx-auto px-6 py-8">
+    <h1 class="text-3xl font-bold text-yellow-400 mb-6">McCalls Dashboard</h1>
 
-  <input id="month" type="month" class="text-black p-2 mb-4 rounded">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+          <input id="month" type="month" class="text-black px-3 py-2 rounded-md">
+          <button onclick="loadReport()" class="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-md hover:bg-yellow-300 transition">
+            Load Report
+          </button>
+        </div>
 
-  <button onclick="loadReport()" class="bg-yellow-400 text-black px-4 py-2 rounded ml-2">
-    Load Report
-  </button>
+        <div class="flex gap-2">
+          <button id="tab-meta" onclick="switchTab('meta')" class="px-4 py-2 rounded-md font-medium bg-yellow-400 text-black">
+            Meta Ads
+          </button>
+          <button id="tab-google" onclick="switchTab('google')" class="px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700">
+            Google Ads
+          </button>
+        </div>
+      </div>
+    </div>
 
-  <div id="output" class="mt-10"></div>
+    <div id="status" class="mb-4"></div>
+
+    <div id="meta-section" class="space-y-6"></div>
+    <div id="google-section" class="space-y-6 hidden"></div>
+  </div>
 
   <script>
+    let currentData = null;
+    let activeTab = "meta";
+
     function formatNumber(value) {
       if (value === null || value === undefined || value === "") return "0";
       return Number(value).toLocaleString();
     }
 
     function formatCurrency(value) {
-      if (value === null || value === undefined || value === "") return "0";
+      if (value === null || value === undefined || value === "") return "0.00";
       return Number(value).toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       });
     }
 
+    function switchTab(tab) {
+      activeTab = tab;
+
+      const metaBtn = document.getElementById("tab-meta");
+      const googleBtn = document.getElementById("tab-google");
+      const metaSection = document.getElementById("meta-section");
+      const googleSection = document.getElementById("google-section");
+
+      if (tab === "meta") {
+        metaBtn.className = "px-4 py-2 rounded-md font-medium bg-yellow-400 text-black";
+        googleBtn.className = "px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700";
+        metaSection.classList.remove("hidden");
+        googleSection.classList.add("hidden");
+      } else {
+        googleBtn.className = "px-4 py-2 rounded-md font-medium bg-yellow-400 text-black";
+        metaBtn.className = "px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700";
+        googleSection.classList.remove("hidden");
+        metaSection.classList.add("hidden");
+      }
+    }
+
+    function renderMeta(data) {
+      const meta = data.meta_ads || {};
+      const metaCampaigns = data.meta_campaigns || [];
+      const metaSection = document.getElementById("meta-section");
+
+      const metaCampaignRows = metaCampaigns.map(c => `
+        <tr class="border-b border-slate-700">
+          <td class="p-3">${c.campaign_name ?? ""}</td>
+          <td class="p-3">${formatCurrency(c.amount_spent)}</td>
+          <td class="p-3">${formatNumber(c.impressions)}</td>
+          <td class="p-3">${formatNumber(c.reach)}</td>
+          <td class="p-3">${formatNumber(c.link_clicks)}</td>
+          <td class="p-3">${formatNumber(c.landing_page_views)}</td>
+          <td class="p-3">${formatNumber(c.ctr)}%</td>
+          <td class="p-3">${formatNumber(c.adds_to_cart)}</td>
+          <td class="p-3">${formatNumber(c.checkouts)}</td>
+          <td class="p-3">${formatNumber(c.purchases)}</td>
+          <td class="p-3">${formatCurrency(c.purchase_conversion_value)}</td>
+          <td class="p-3">${formatNumber(c.purchase_roas)}</td>
+          <td class="p-3">${formatCurrency(c.cost_per_purchase)}</td>
+        </tr>
+      `).join("");
+
+      metaSection.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Amount Spent</div><div class="text-3xl font-bold">${formatCurrency(meta.amount_spent)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Impressions</div><div class="text-3xl font-bold">${formatNumber(meta.impressions)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Reach</div><div class="text-3xl font-bold">${formatNumber(meta.reach)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Link Clicks</div><div class="text-3xl font-bold">${formatNumber(meta.link_clicks)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Landing Page Views</div><div class="text-3xl font-bold">${formatNumber(meta.landing_page_views)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">CTR</div><div class="text-3xl font-bold">${formatNumber(meta.ctr)}%</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Adds to Cart</div><div class="text-3xl font-bold">${formatNumber(meta.adds_to_cart)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Checkouts</div><div class="text-3xl font-bold">${formatNumber(meta.checkouts)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchases</div><div class="text-3xl font-bold">${formatNumber(meta.purchases)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase Conversion Value</div><div class="text-3xl font-bold">${formatCurrency(meta.purchase_conversion_value)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase ROAS</div><div class="text-3xl font-bold">${formatNumber(meta.purchase_roas)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Cost per Purchase</div><div class="text-3xl font-bold">${formatCurrency(meta.cost_per_purchase)}</div></div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Meta Campaign Breakdown</h2>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-700 text-left">
+                  <th class="p-3">Campaign</th>
+                  <th class="p-3">Spent</th>
+                  <th class="p-3">Impr.</th>
+                  <th class="p-3">Reach</th>
+                  <th class="p-3">Link Clicks</th>
+                  <th class="p-3">LP Views</th>
+                  <th class="p-3">CTR</th>
+                  <th class="p-3">ATC</th>
+                  <th class="p-3">Checkouts</th>
+                  <th class="p-3">Purchases</th>
+                  <th class="p-3">Conv. Value</th>
+                  <th class="p-3">ROAS</th>
+                  <th class="p-3">CPP</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${metaCampaignRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderGoogle(data) {
+      const google = data.google_ads || {};
+      const googleCampaigns = data.google_campaigns || [];
+      const googleSection = document.getElementById("google-section");
+
+      const googleCampaignRows = googleCampaigns.map(c => `
+        <tr class="border-b border-slate-700">
+          <td class="p-3">${c.campaign_name ?? ""}</td>
+          <td class="p-3">${formatCurrency(c.amount_spent)}</td>
+          <td class="p-3">${formatNumber(c.impressions)}</td>
+          <td class="p-3">${formatNumber(c.link_clicks)}</td>
+          <td class="p-3">${formatNumber(c.ctr)}%</td>
+          <td class="p-3">${formatNumber(c.purchases)}</td>
+          <td class="p-3">${formatCurrency(c.purchase_conversion_value)}</td>
+          <td class="p-3">${formatNumber(c.purchase_roas)}</td>
+          <td class="p-3">${formatCurrency(c.cost_per_purchase)}</td>
+        </tr>
+      `).join("");
+
+      googleSection.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Amount Spent</div><div class="text-3xl font-bold">${formatCurrency(google.amount_spent)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Impressions</div><div class="text-3xl font-bold">${formatNumber(google.impressions)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Link Clicks</div><div class="text-3xl font-bold">${formatNumber(google.link_clicks)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">CTR</div><div class="text-3xl font-bold">${formatNumber(google.ctr)}%</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchases</div><div class="text-3xl font-bold">${formatNumber(google.purchases)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase Conversion Value</div><div class="text-3xl font-bold">${formatCurrency(google.purchase_conversion_value)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase ROAS</div><div class="text-3xl font-bold">${formatNumber(google.purchase_roas)}</div></div>
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Cost per Purchase</div><div class="text-3xl font-bold">${formatCurrency(google.cost_per_purchase)}</div></div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Google Campaign Breakdown</h2>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="border-b border-slate-700 text-left">
+                  <th class="p-3">Campaign</th>
+                  <th class="p-3">Spent</th>
+                  <th class="p-3">Impr.</th>
+                  <th class="p-3">Link Clicks</th>
+                  <th class="p-3">CTR</th>
+                  <th class="p-3">Purchases</th>
+                  <th class="p-3">Conv. Value</th>
+                  <th class="p-3">ROAS</th>
+                  <th class="p-3">CPP</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${googleCampaignRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
     async function loadReport() {
       const month = document.getElementById("month").value;
-      const output = document.getElementById("output");
+      const status = document.getElementById("status");
 
       if (!month) {
-        output.innerHTML = `<div class="text-red-400">Please select a month first.</div>`;
+        status.innerHTML = `<div class="text-red-400">Please select a month first.</div>`;
         return;
       }
 
-      output.innerHTML = "<p>Loading...</p>";
+      status.innerHTML = `<div class="text-slate-300">Loading...</div>`;
 
       try {
         const res = await fetch("https://mccalls-dashboard.onrender.com/api/report?month=" + month);
         const data = await res.json();
 
         if (data.error) {
-          output.innerHTML = `<div class="text-red-400">${data.error}</div>`;
+          status.innerHTML = `<div class="text-red-400">${data.error}</div>`;
           return;
         }
 
-        const meta = data.meta_ads || {};
-        const metaCampaigns = data.meta_campaigns || [];
-        const google = data.google_ads || {};
-        const googleCampaigns = data.google_campaigns || [];
-
-        const metaCampaignRows = metaCampaigns.map(c => `
-          <tr class="border-b border-gray-700">
-            <td class="p-3">${c.campaign_name ?? ""}</td>
-            <td class="p-3">${formatCurrency(c.amount_spent)}</td>
-            <td class="p-3">${formatNumber(c.impressions)}</td>
-            <td class="p-3">${formatNumber(c.reach)}</td>
-            <td class="p-3">${formatNumber(c.link_clicks)}</td>
-            <td class="p-3">${formatNumber(c.landing_page_views)}</td>
-            <td class="p-3">${formatNumber(c.ctr)}%</td>
-            <td class="p-3">${formatNumber(c.adds_to_cart)}</td>
-            <td class="p-3">${formatNumber(c.checkouts)}</td>
-            <td class="p-3">${formatNumber(c.purchases)}</td>
-            <td class="p-3">${formatCurrency(c.purchase_conversion_value)}</td>
-            <td class="p-3">${formatNumber(c.purchase_roas)}</td>
-            <td class="p-3">${formatCurrency(c.cost_per_purchase)}</td>
-          </tr>
-        `).join("");
-
-        const googleCampaignRows = googleCampaigns.map(c => `
-          <tr class="border-b border-gray-700">
-            <td class="p-3">${c.campaign_name ?? ""}</td>
-            <td class="p-3">${formatCurrency(c.amount_spent)}</td>
-            <td class="p-3">${formatNumber(c.impressions)}</td>
-            <td class="p-3">${formatNumber(c.link_clicks)}</td>
-            <td class="p-3">${formatNumber(c.ctr)}%</td>
-            <td class="p-3">${formatNumber(c.purchases)}</td>
-            <td class="p-3">${formatCurrency(c.purchase_conversion_value)}</td>
-            <td class="p-3">${formatNumber(c.purchase_roas)}</td>
-            <td class="p-3">${formatCurrency(c.cost_per_purchase)}</td>
-          </tr>
-        `).join("");
-
-        output.innerHTML = `
-          <div class="mb-12">
-            <h2 class="text-2xl font-semibold mb-4 text-yellow-400">Meta Ads Summary</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Amount Spent</h3><p class="text-2xl font-bold">${formatCurrency(meta.amount_spent)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Impressions</h3><p class="text-2xl font-bold">${formatNumber(meta.impressions)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Reach</h3><p class="text-2xl font-bold">${formatNumber(meta.reach)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Link Clicks</h3><p class="text-2xl font-bold">${formatNumber(meta.link_clicks)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Landing Page Views</h3><p class="text-2xl font-bold">${formatNumber(meta.landing_page_views)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">CTR</h3><p class="text-2xl font-bold">${formatNumber(meta.ctr)}%</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Adds to Cart</h3><p class="text-2xl font-bold">${formatNumber(meta.adds_to_cart)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Checkouts</h3><p class="text-2xl font-bold">${formatNumber(meta.checkouts)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Purchases</h3><p class="text-2xl font-bold">${formatNumber(meta.purchases)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Purchase Conversion Value</h3><p class="text-2xl font-bold">${formatCurrency(meta.purchase_conversion_value)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Purchase ROAS</h3><p class="text-2xl font-bold">${formatNumber(meta.purchase_roas)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Cost per Purchase</h3><p class="text-2xl font-bold">${formatCurrency(meta.cost_per_purchase)}</p></div>
-            </div>
-
-            <h3 class="text-lg font-semibold mb-4 text-yellow-400">Meta Campaign Breakdown</h3>
-
-            <div class="overflow-x-auto">
-              <table class="min-w-full bg-gray-800 rounded text-sm">
-                <thead>
-                  <tr class="border-b border-gray-600 text-left">
-                    <th class="p-3">Campaign</th>
-                    <th class="p-3">Spent</th>
-                    <th class="p-3">Impr.</th>
-                    <th class="p-3">Reach</th>
-                    <th class="p-3">Link Clicks</th>
-                    <th class="p-3">LP Views</th>
-                    <th class="p-3">CTR</th>
-                    <th class="p-3">ATC</th>
-                    <th class="p-3">Checkouts</th>
-                    <th class="p-3">Purchases</th>
-                    <th class="p-3">Conv. Value</th>
-                    <th class="p-3">ROAS</th>
-                    <th class="p-3">CPP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${metaCampaignRows}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="mb-12">
-            <h2 class="text-2xl font-semibold mb-4 text-yellow-400">Google Ads Summary</h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Amount Spent</h3><p class="text-2xl font-bold">${formatCurrency(google.amount_spent)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Impressions</h3><p class="text-2xl font-bold">${formatNumber(google.impressions)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Link Clicks</h3><p class="text-2xl font-bold">${formatNumber(google.link_clicks)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">CTR</h3><p class="text-2xl font-bold">${formatNumber(google.ctr)}%</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Purchases</h3><p class="text-2xl font-bold">${formatNumber(google.purchases)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Purchase Conversion Value</h3><p class="text-2xl font-bold">${formatCurrency(google.purchase_conversion_value)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Purchase ROAS</h3><p class="text-2xl font-bold">${formatNumber(google.purchase_roas)}</p></div>
-              <div class="bg-gray-800 p-4 rounded"><h3 class="text-sm text-gray-400">Cost per Purchase</h3><p class="text-2xl font-bold">${formatCurrency(google.cost_per_purchase)}</p></div>
-            </div>
-
-            <h3 class="text-lg font-semibold mb-4 text-yellow-400">Google Campaign Breakdown</h3>
-
-            <div class="overflow-x-auto">
-              <table class="min-w-full bg-gray-800 rounded text-sm">
-                <thead>
-                  <tr class="border-b border-gray-600 text-left">
-                    <th class="p-3">Campaign</th>
-                    <th class="p-3">Spent</th>
-                    <th class="p-3">Impr.</th>
-                    <th class="p-3">Link Clicks</th>
-                    <th class="p-3">CTR</th>
-                    <th class="p-3">Purchases</th>
-                    <th class="p-3">Conv. Value</th>
-                    <th class="p-3">ROAS</th>
-                    <th class="p-3">CPP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${googleCampaignRows}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        `;
+        currentData = data;
+        renderMeta(data);
+        renderGoogle(data);
+        status.innerHTML = "";
+        switchTab(activeTab);
       } catch (error) {
-        output.innerHTML = `<div class="text-red-400">Error loading report</div>`;
+        status.innerHTML = `<div class="text-red-400">Error loading report</div>`;
       }
     }
   </script>
