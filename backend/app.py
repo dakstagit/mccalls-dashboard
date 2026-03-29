@@ -120,7 +120,7 @@ def get_google_access_token():
 def status_label(metric_name, value):
     name = metric_name.lower()
 
-    if name == "roas":
+    if name == "purchase_roas":
         if value >= 6:
             return "strong"
         elif value >= 3:
@@ -332,7 +332,6 @@ def fetch_meta_data(month_str):
     if not META_ACCESS_TOKEN:
         raise Exception("META_ACCESS_TOKEN is missing in Render environment variables")
 
-    # Summary
     summary_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
     summary_params = {
         "fields": "spend,impressions,reach,ctr,actions,action_values,purchase_roas",
@@ -378,7 +377,6 @@ def fetch_meta_data(month_str):
     if summary["purchases"] > 0:
         summary["cost_per_purchase"] = round(summary["amount_spent"] / summary["purchases"], 2)
 
-    # Campaigns
     campaign_url = f"https://graph.facebook.com/v18.0/{AD_ACCOUNT_ID}/insights"
     campaign_params = {
         "fields": "campaign_name,spend,impressions,reach,ctr,actions,action_values,purchase_roas",
@@ -441,7 +439,8 @@ def fetch_google_data(month_str):
         "metrics.clicks, "
         "metrics.ctr, "
         "metrics.conversions, "
-        "metrics.conversions_value "
+        "metrics.conversions_value, "
+        "segments.conversion_action_name "
         f"FROM campaign "
         f"WHERE segments.date BETWEEN '{start_date}' AND '{end_date}' "
         "AND metrics.impressions > 0"
@@ -469,60 +468,74 @@ def fetch_google_data(month_str):
     if google_response.status_code != 200:
         raise Exception(f"Google Ads API request failed: {google_json}")
 
-    campaigns = []
-    total_spend = 0
-    total_impressions = 0
-    total_clicks = 0
-    total_conversions = 0
-    total_conversion_value = 0
+    campaign_totals = {}
 
     for row in google_json.get("results", []):
         campaign_name = row.get("campaign", {}).get("name", "")
         metrics = row.get("metrics", {})
+        conversion_action_name = row.get("segments", {}).get("conversionActionName", "") or ""
 
         amount_spent = round(safe_float(metrics.get("costMicros", 0)) / 1000000, 2)
         impressions = safe_int(metrics.get("impressions", 0))
         link_clicks = safe_int(metrics.get("clicks", 0))
         ctr = round(safe_float(metrics.get("ctr", 0)) * 100, 2)
-        purchases = round(safe_float(metrics.get("conversions", 0)), 2)
-        purchase_conversion_value = round(safe_float(metrics.get("conversionsValue", 0)), 2)
+
+        if campaign_name not in campaign_totals:
+            campaign_totals[campaign_name] = {
+                "campaign_name": campaign_name,
+                "amount_spent": amount_spent,
+                "impressions": impressions,
+                "link_clicks": link_clicks,
+                "ctr": ctr,
+                "purchases": 0,
+                "purchase_conversion_value": 0
+            }
+
+        if "purchase" in conversion_action_name.lower():
+            campaign_totals[campaign_name]["purchases"] += round(safe_float(metrics.get("conversions", 0)), 2)
+            campaign_totals[campaign_name]["purchase_conversion_value"] += round(safe_float(metrics.get("conversionsValue", 0)), 2)
+
+    google_campaigns = []
+    google_total_spend = 0
+    google_total_impressions = 0
+    google_total_clicks = 0
+    google_total_conversions = 0
+    google_total_conversion_value = 0
+
+    for campaign in campaign_totals.values():
+        amount_spent = campaign["amount_spent"]
+        purchases = round(campaign["purchases"], 2)
+        purchase_conversion_value = round(campaign["purchase_conversion_value"], 2)
         purchase_roas = round(purchase_conversion_value / amount_spent, 2) if amount_spent > 0 else 0
         cost_per_purchase = round(amount_spent / purchases, 2) if purchases > 0 else 0
 
-        total_spend += amount_spent
-        total_impressions += impressions
-        total_clicks += link_clicks
-        total_conversions += purchases
-        total_conversion_value += purchase_conversion_value
+        campaign["purchase_roas"] = purchase_roas
+        campaign["cost_per_purchase"] = cost_per_purchase
 
-        campaigns.append({
-            "campaign_name": campaign_name,
-            "amount_spent": amount_spent,
-            "impressions": impressions,
-            "link_clicks": link_clicks,
-            "ctr": ctr,
-            "purchases": purchases,
-            "purchase_conversion_value": purchase_conversion_value,
-            "purchase_roas": purchase_roas,
-            "cost_per_purchase": cost_per_purchase
-        })
+        google_total_spend += amount_spent
+        google_total_impressions += campaign["impressions"]
+        google_total_clicks += campaign["link_clicks"]
+        google_total_conversions += purchases
+        google_total_conversion_value += purchase_conversion_value
 
-    summary_ctr = round((total_clicks / total_impressions) * 100, 2) if total_impressions > 0 else 0
-    summary_roas = round(total_conversion_value / total_spend, 2) if total_spend > 0 else 0
-    summary_cpp = round(total_spend / total_conversions, 2) if total_conversions > 0 else 0
+        google_campaigns.append(campaign)
+
+    summary_ctr = round((google_total_clicks / google_total_impressions) * 100, 2) if google_total_impressions > 0 else 0
+    summary_roas = round(google_total_conversion_value / google_total_spend, 2) if google_total_spend > 0 else 0
+    summary_cpp = round(google_total_spend / google_total_conversions, 2) if google_total_conversions > 0 else 0
 
     return {
         "summary": {
-            "amount_spent": round(total_spend, 2),
-            "impressions": total_impressions,
-            "link_clicks": total_clicks,
+            "amount_spent": round(google_total_spend, 2),
+            "impressions": google_total_impressions,
+            "link_clicks": google_total_clicks,
             "ctr": summary_ctr,
-            "purchases": round(total_conversions, 2),
-            "purchase_conversion_value": round(total_conversion_value, 2),
+            "purchases": round(google_total_conversions, 2),
+            "purchase_conversion_value": round(google_total_conversion_value, 2),
             "purchase_roas": summary_roas,
             "cost_per_purchase": summary_cpp
         },
-        "campaigns": campaigns
+        "campaigns": google_campaigns
     }
 
 
