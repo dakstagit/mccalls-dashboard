@@ -192,7 +192,11 @@ def get_report():
             }), 500
 
         start_date = f"{month}-01"
-        end_date = f"{month}-31"
+        
+        import calendar
+        year, month_num = map(int, month.split("-"))
+        last_day = calendar.monthrange(year, month_num)[1]
+        end_date = f"{month}-{last_day:02d}"
 
         google_query = (
             "SELECT "
