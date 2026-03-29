@@ -6,10 +6,11 @@
 </head>
 <body class="bg-slate-950 text-white min-h-screen">
   <div class="max-w-7xl mx-auto px-6 py-8">
-    <h1 class="text-3xl font-bold text-yellow-400 mb-6">McCalls Dashboard</h1>
+    <h1 class="text-3xl font-bold text-yellow-400 mb-6">McCalls Performance Dashboard</h1>
 
+    <!-- Top controls -->
     <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
           <input id="month" type="month" class="text-black px-3 py-2 rounded-md">
           <button onclick="loadReport()" class="bg-yellow-400 text-black font-semibold px-4 py-2 rounded-md hover:bg-yellow-300 transition">
@@ -17,12 +18,15 @@
           </button>
         </div>
 
-        <div class="flex gap-2">
-          <button id="tab-meta" onclick="switchTab('meta')" class="px-4 py-2 rounded-md font-medium bg-yellow-400 text-black">
-            Meta Ads
+        <div class="flex flex-wrap gap-2">
+          <button id="tab-overview" onclick="switchTab('overview')" class="px-4 py-2 rounded-md font-medium bg-yellow-400 text-black">
+            Overview
+          </button>
+          <button id="tab-meta" onclick="switchTab('meta')" class="px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700">
+            Meta
           </button>
           <button id="tab-google" onclick="switchTab('google')" class="px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700">
-            Google Ads
+            Google
           </button>
         </div>
       </div>
@@ -30,13 +34,14 @@
 
     <div id="status" class="mb-4"></div>
 
-    <div id="meta-section" class="space-y-6"></div>
+    <div id="overview-section" class="space-y-6"></div>
+    <div id="meta-section" class="space-y-6 hidden"></div>
     <div id="google-section" class="space-y-6 hidden"></div>
   </div>
 
   <script>
     let currentData = null;
-    let activeTab = "meta";
+    let activeTab = "overview";
 
     function formatNumber(value) {
       if (value === null || value === undefined || value === "") return "0";
@@ -51,33 +56,206 @@
       });
     }
 
+    function formatPercent(value) {
+      if (value === null || value === undefined || value === "") return "0%";
+      return `${Number(value).toLocaleString(undefined, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+      })}%`;
+    }
+
+    function getStatusClass(status) {
+      if (status === "strong") return "text-green-400";
+      if (status === "poor") return "text-red-400";
+      return "text-yellow-400";
+    }
+
+    function getBadgeClass(status) {
+      if (status === "strong") return "bg-green-500/15 text-green-300 border border-green-500/30";
+      if (status === "poor") return "bg-red-500/15 text-red-300 border border-red-500/30";
+      return "bg-yellow-500/15 text-yellow-300 border border-yellow-500/30";
+    }
+
+    function directionArrow(direction) {
+      if (direction === "up") return "↑";
+      if (direction === "down") return "↓";
+      return "→";
+    }
+
+    function comparisonTile(label, obj, isCurrency = false, isPercent = false) {
+      const current = isCurrency
+        ? formatCurrency(obj.current)
+        : isPercent
+          ? formatPercent(obj.current)
+          : formatNumber(obj.current);
+
+      const previous = isCurrency
+        ? formatCurrency(obj.previous)
+        : isPercent
+          ? formatPercent(obj.previous)
+          : formatNumber(obj.previous);
+
+      const delta = isCurrency
+        ? formatCurrency(Math.abs(obj.delta))
+        : isPercent
+          ? formatPercent(Math.abs(obj.delta))
+          : formatNumber(Math.abs(obj.delta));
+
+      return `
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-slate-400 text-sm">${label}</div>
+            <span class="text-xs px-2 py-1 rounded-full ${getBadgeClass(obj.status)}">${obj.status}</span>
+          </div>
+          <div class="text-3xl font-bold mb-2">${current}</div>
+          <div class="text-sm text-slate-400 mb-1">Prev: ${previous}</div>
+          <div class="text-sm ${obj.direction === 'up' ? 'text-green-400' : obj.direction === 'down' ? 'text-red-400' : 'text-slate-400'}">
+            ${directionArrow(obj.direction)} ${delta} (${obj.change_pct}%)
+          </div>
+        </div>
+      `;
+    }
+
+    function highlightCard(title, item, isCurrency = false) {
+      if (!item) {
+        return `
+          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+            <div class="text-slate-400 text-sm mb-2">${title}</div>
+            <div class="text-lg font-semibold">No data</div>
+          </div>
+        `;
+      }
+
+      const value = isCurrency ? formatCurrency(item.value) : formatNumber(item.value);
+
+      return `
+        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+          <div class="text-slate-400 text-sm mb-2">${title}</div>
+          <div class="text-lg font-semibold mb-1">${item.campaign_name}</div>
+          <div class="text-2xl font-bold text-yellow-400">${value}</div>
+        </div>
+      `;
+    }
+
     function switchTab(tab) {
       activeTab = tab;
 
-      const metaBtn = document.getElementById("tab-meta");
-      const googleBtn = document.getElementById("tab-google");
-      const metaSection = document.getElementById("meta-section");
-      const googleSection = document.getElementById("google-section");
+      const tabButtons = {
+        overview: document.getElementById("tab-overview"),
+        meta: document.getElementById("tab-meta"),
+        google: document.getElementById("tab-google")
+      };
 
-      if (tab === "meta") {
-        metaBtn.className = "px-4 py-2 rounded-md font-medium bg-yellow-400 text-black";
-        googleBtn.className = "px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700";
-        metaSection.classList.remove("hidden");
-        googleSection.classList.add("hidden");
-      } else {
-        googleBtn.className = "px-4 py-2 rounded-md font-medium bg-yellow-400 text-black";
-        metaBtn.className = "px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700";
-        googleSection.classList.remove("hidden");
-        metaSection.classList.add("hidden");
-      }
+      Object.keys(tabButtons).forEach(key => {
+        if (key === tab) {
+          tabButtons[key].className = "px-4 py-2 rounded-md font-medium bg-yellow-400 text-black";
+        } else {
+          tabButtons[key].className = "px-4 py-2 rounded-md font-medium bg-slate-800 text-white border border-slate-700";
+        }
+      });
+
+      document.getElementById("overview-section").classList.add("hidden");
+      document.getElementById("meta-section").classList.add("hidden");
+      document.getElementById("google-section").classList.add("hidden");
+
+      document.getElementById(`${tab}-section`).classList.remove("hidden");
+    }
+
+    function renderOverview(data) {
+      const overview = data.overview || {};
+      const summary = overview.summary || {};
+      const comparison = overview.comparison || {};
+      const channelRoles = overview.channel_roles || {};
+      const commentary = overview.commentary || {};
+
+      document.getElementById("overview-section").innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <div class="text-sm text-slate-400 mb-2">Reporting Month</div>
+              <div class="text-2xl font-bold">${data.requested_month || ""}</div>
+            </div>
+            <div>
+              <div class="text-sm text-slate-400 mb-2">Compared To</div>
+              <div class="text-2xl font-bold">${data.previous_month || ""}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Executive Summary</h2>
+          <p class="text-slate-300 leading-7">${overview.executive_summary || ""}</p>
+        </div>
+
+        <div>
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Blended KPI Overview</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            ${comparisonTile("Spend", comparison.amount_spent || {}, true)}
+            ${comparisonTile("Clicks", comparison.link_clicks || {})}
+            ${comparisonTile("Purchases", comparison.purchases || {})}
+            ${comparisonTile("Conversion Value", comparison.purchase_conversion_value || {}, true)}
+            ${comparisonTile("ROAS", comparison.purchase_roas || {})}
+            ${comparisonTile("Cost per Purchase", comparison.cost_per_purchase || {}, true)}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Channel Roles</h2>
+            <div class="space-y-4">
+              <div>
+                <div class="text-sm text-slate-400 mb-1">Meta</div>
+                <p class="text-slate-300">${channelRoles.meta || ""}</p>
+              </div>
+              <div>
+                <div class="text-sm text-slate-400 mb-1">Google</div>
+                <p class="text-slate-300">${channelRoles.google || ""}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Key Takeaways</h2>
+            <ul class="space-y-3 text-slate-300 list-disc ml-5">
+              ${(overview.key_takeaways || []).map(item => `<li>${item}</li>`).join("")}
+            </ul>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Recommendations</h2>
+          <ul class="space-y-3 text-slate-300 list-disc ml-5">
+            ${(overview.recommendations || []).map(item => `<li>${item}</li>`).join("")}
+          </ul>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Performance Commentary</h2>
+            <div class="space-y-3 text-slate-300">
+              <p><span class="text-slate-400">Overview:</span> ${commentary.performance_overview || ""}</p>
+              <p><span class="text-slate-400">Platform Comparison:</span> ${commentary.platform_comparison || ""}</p>
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Next Actions</h2>
+            <ul class="space-y-3 text-slate-300 list-disc ml-5">
+              ${(commentary.next_actions || []).map(item => `<li>${item}</li>`).join("")}
+            </ul>
+          </div>
+        </div>
+      `;
     }
 
     function renderMeta(data) {
-      const meta = data.meta_ads || {};
-      const metaCampaigns = data.meta_campaigns || [];
-      const metaSection = document.getElementById("meta-section");
+      const meta = data.meta || {};
+      const summary = meta.summary || {};
+      const comparison = meta.comparison || {};
+      const highlights = meta.highlights || {};
+      const campaigns = meta.campaigns || [];
 
-      const metaCampaignRows = metaCampaigns.map(c => `
+      const campaignRows = campaigns.map(c => `
         <tr class="border-b border-slate-700">
           <td class="p-3">${c.campaign_name ?? ""}</td>
           <td class="p-3">${formatCurrency(c.amount_spent)}</td>
@@ -85,7 +263,7 @@
           <td class="p-3">${formatNumber(c.reach)}</td>
           <td class="p-3">${formatNumber(c.link_clicks)}</td>
           <td class="p-3">${formatNumber(c.landing_page_views)}</td>
-          <td class="p-3">${formatNumber(c.ctr)}%</td>
+          <td class="p-3">${formatPercent(c.ctr)}</td>
           <td class="p-3">${formatNumber(c.adds_to_cart)}</td>
           <td class="p-3">${formatNumber(c.checkouts)}</td>
           <td class="p-3">${formatNumber(c.purchases)}</td>
@@ -95,20 +273,46 @@
         </tr>
       `).join("");
 
-      metaSection.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Amount Spent</div><div class="text-3xl font-bold">${formatCurrency(meta.amount_spent)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Impressions</div><div class="text-3xl font-bold">${formatNumber(meta.impressions)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Reach</div><div class="text-3xl font-bold">${formatNumber(meta.reach)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Link Clicks</div><div class="text-3xl font-bold">${formatNumber(meta.link_clicks)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Landing Page Views</div><div class="text-3xl font-bold">${formatNumber(meta.landing_page_views)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">CTR</div><div class="text-3xl font-bold">${formatNumber(meta.ctr)}%</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Adds to Cart</div><div class="text-3xl font-bold">${formatNumber(meta.adds_to_cart)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Checkouts</div><div class="text-3xl font-bold">${formatNumber(meta.checkouts)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchases</div><div class="text-3xl font-bold">${formatNumber(meta.purchases)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase Conversion Value</div><div class="text-3xl font-bold">${formatCurrency(meta.purchase_conversion_value)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase ROAS</div><div class="text-3xl font-bold">${formatNumber(meta.purchase_roas)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Cost per Purchase</div><div class="text-3xl font-bold">${formatCurrency(meta.cost_per_purchase)}</div></div>
+      document.getElementById("meta-section").innerHTML = `
+        <div>
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Meta Month-on-Month</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            ${comparisonTile("Spend", comparison.amount_spent || {}, true)}
+            ${comparisonTile("Clicks", comparison.link_clicks || {})}
+            ${comparisonTile("Purchases", comparison.purchases || {})}
+            ${comparisonTile("Conversion Value", comparison.purchase_conversion_value || {}, true)}
+            ${comparisonTile("ROAS", comparison.purchase_roas || {})}
+            ${comparisonTile("Cost per Purchase", comparison.cost_per_purchase || {}, true)}
+            ${comparisonTile("CTR", comparison.ctr || {}, false, true)}
+          </div>
+        </div>
+
+        <div>
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Meta Campaign Highlights</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            ${highlightCard("Best ROAS", highlights.best_roas)}
+            ${highlightCard("Most Purchases", highlights.most_purchases)}
+            ${highlightCard("Highest Spend", highlights.highest_spend, true)}
+            ${highlightCard("Worst Cost per Purchase", highlights.worst_cpp, true)}
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Meta Summary Snapshot</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Spend</div><div class="text-2xl font-bold">${formatCurrency(summary.amount_spent)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Impressions</div><div class="text-2xl font-bold">${formatNumber(summary.impressions)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Reach</div><div class="text-2xl font-bold">${formatNumber(summary.reach)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Clicks</div><div class="text-2xl font-bold">${formatNumber(summary.link_clicks)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Landing Page Views</div><div class="text-2xl font-bold">${formatNumber(summary.landing_page_views)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">CTR</div><div class="text-2xl font-bold">${formatPercent(summary.ctr)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Purchases</div><div class="text-2xl font-bold">${formatNumber(summary.purchases)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Conversion Value</div><div class="text-2xl font-bold">${formatCurrency(summary.purchase_conversion_value)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">ROAS</div><div class="text-2xl font-bold">${formatNumber(summary.purchase_roas)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Cost per Purchase</div><div class="text-2xl font-bold">${formatCurrency(summary.cost_per_purchase)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Adds to Cart</div><div class="text-2xl font-bold">${formatNumber(summary.adds_to_cart)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Checkouts</div><div class="text-2xl font-bold">${formatNumber(summary.checkouts)}</div></div>
+          </div>
         </div>
 
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
@@ -133,7 +337,7 @@
                 </tr>
               </thead>
               <tbody>
-                ${metaCampaignRows}
+                ${campaignRows}
               </tbody>
             </table>
           </div>
@@ -142,17 +346,19 @@
     }
 
     function renderGoogle(data) {
-      const google = data.google_ads || {};
-      const googleCampaigns = data.google_campaigns || [];
-      const googleSection = document.getElementById("google-section");
+      const google = data.google || {};
+      const summary = google.summary || {};
+      const comparison = google.comparison || {};
+      const highlights = google.highlights || {};
+      const campaigns = google.campaigns || [];
 
-      const googleCampaignRows = googleCampaigns.map(c => `
+      const campaignRows = campaigns.map(c => `
         <tr class="border-b border-slate-700">
           <td class="p-3">${c.campaign_name ?? ""}</td>
           <td class="p-3">${formatCurrency(c.amount_spent)}</td>
           <td class="p-3">${formatNumber(c.impressions)}</td>
           <td class="p-3">${formatNumber(c.link_clicks)}</td>
-          <td class="p-3">${formatNumber(c.ctr)}%</td>
+          <td class="p-3">${formatPercent(c.ctr)}</td>
           <td class="p-3">${formatNumber(c.purchases)}</td>
           <td class="p-3">${formatCurrency(c.purchase_conversion_value)}</td>
           <td class="p-3">${formatNumber(c.purchase_roas)}</td>
@@ -160,16 +366,42 @@
         </tr>
       `).join("");
 
-      googleSection.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Amount Spent</div><div class="text-3xl font-bold">${formatCurrency(google.amount_spent)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Impressions</div><div class="text-3xl font-bold">${formatNumber(google.impressions)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Link Clicks</div><div class="text-3xl font-bold">${formatNumber(google.link_clicks)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">CTR</div><div class="text-3xl font-bold">${formatNumber(google.ctr)}%</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchases</div><div class="text-3xl font-bold">${formatNumber(google.purchases)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase Conversion Value</div><div class="text-3xl font-bold">${formatCurrency(google.purchase_conversion_value)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Purchase ROAS</div><div class="text-3xl font-bold">${formatNumber(google.purchase_roas)}</div></div>
-          <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl"><div class="text-slate-400 text-sm mb-2">Cost per Purchase</div><div class="text-3xl font-bold">${formatCurrency(google.cost_per_purchase)}</div></div>
+      document.getElementById("google-section").innerHTML = `
+        <div>
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Google Month-on-Month</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            ${comparisonTile("Spend", comparison.amount_spent || {}, true)}
+            ${comparisonTile("Clicks", comparison.link_clicks || {})}
+            ${comparisonTile("Purchases", comparison.purchases || {})}
+            ${comparisonTile("Conversion Value", comparison.purchase_conversion_value || {}, true)}
+            ${comparisonTile("ROAS", comparison.purchase_roas || {})}
+            ${comparisonTile("Cost per Purchase", comparison.cost_per_purchase || {}, true)}
+            ${comparisonTile("CTR", comparison.ctr || {}, false, true)}
+          </div>
+        </div>
+
+        <div>
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Google Campaign Highlights</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            ${highlightCard("Best ROAS", highlights.best_roas)}
+            ${highlightCard("Most Purchases", highlights.most_purchases)}
+            ${highlightCard("Highest Spend", highlights.highest_spend, true)}
+            ${highlightCard("Worst Cost per Purchase", highlights.worst_cpp, true)}
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Google Summary Snapshot</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Spend</div><div class="text-2xl font-bold">${formatCurrency(summary.amount_spent)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Impressions</div><div class="text-2xl font-bold">${formatNumber(summary.impressions)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Clicks</div><div class="text-2xl font-bold">${formatNumber(summary.link_clicks)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">CTR</div><div class="text-2xl font-bold">${formatPercent(summary.ctr)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Purchases</div><div class="text-2xl font-bold">${formatNumber(summary.purchases)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Conversion Value</div><div class="text-2xl font-bold">${formatCurrency(summary.purchase_conversion_value)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">ROAS</div><div class="text-2xl font-bold">${formatNumber(summary.purchase_roas)}</div></div>
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg"><div class="text-slate-400 text-sm mb-2">Cost per Purchase</div><div class="text-2xl font-bold">${formatCurrency(summary.cost_per_purchase)}</div></div>
+          </div>
         </div>
 
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
@@ -190,7 +422,7 @@
                 </tr>
               </thead>
               <tbody>
-                ${googleCampaignRows}
+                ${campaignRows}
               </tbody>
             </table>
           </div>
@@ -219,6 +451,7 @@
         }
 
         currentData = data;
+        renderOverview(data);
         renderMeta(data);
         renderGoogle(data);
         status.innerHTML = "";
