@@ -82,39 +82,66 @@
       return "→";
     }
 
-    function comparisonTile(label, obj, isCurrency = false, isPercent = false) {
-      const current = isCurrency
-        ? formatCurrency(obj.current)
-        : isPercent
-          ? formatPercent(obj.current)
-          : formatNumber(obj.current);
+function getDeltaClass(label, obj) {
+  const key = label.toLowerCase();
 
-      const previous = isCurrency
-        ? formatCurrency(obj.previous)
-        : isPercent
-          ? formatPercent(obj.previous)
-          : formatNumber(obj.previous);
+  // Spend is neutral — increase/decrease is not automatically good/bad
+  if (key.includes("spend")) return "text-slate-400";
 
-      const delta = isCurrency
-        ? formatCurrency(Math.abs(obj.delta))
-        : isPercent
-          ? formatPercent(Math.abs(obj.delta))
-          : formatNumber(Math.abs(obj.delta));
+  // Cost/CPA/CPP going up is bad, going down is good
+  if (
+    key.includes("cost per purchase") ||
+    key.includes("cpa") ||
+    key.includes("cpp") ||
+    key.includes("cost")
+  ) {
+    if (obj.direction === "up") return "text-red-400";
+    if (obj.direction === "down") return "text-green-400";
+    return "text-slate-400";
+  }
 
-      return `
-        <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-slate-400 text-sm">${label}</div>
-            <span class="text-xs px-2 py-1 rounded-full ${getBadgeClass(obj.status)}">${obj.status}</span>
-          </div>
-          <div class="text-3xl font-bold mb-2">${current}</div>
-          <div class="text-sm text-slate-400 mb-1">Prev: ${previous}</div>
-          <div class="text-sm ${obj.direction === 'up' ? 'text-green-400' : obj.direction === 'down' ? 'text-red-400' : 'text-slate-400'}">
-            ${directionArrow(obj.direction)} ${delta} (${obj.change_pct}%)
-          </div>
-        </div>
-      `;
-    }
+  // For performance metrics, up is good and down is bad
+  if (obj.direction === "up") return "text-green-400";
+  if (obj.direction === "down") return "text-red-400";
+
+  return "text-slate-400";
+}
+
+function comparisonTile(label, obj, isCurrency = false, isPercent = false) {
+  const current = isCurrency
+    ? formatCurrency(obj.current)
+    : isPercent
+      ? formatPercent(obj.current)
+      : formatNumber(obj.current);
+
+  const previous = isCurrency
+    ? formatCurrency(obj.previous)
+    : isPercent
+      ? formatPercent(obj.previous)
+      : formatNumber(obj.previous);
+
+  const delta = isCurrency
+    ? formatCurrency(Math.abs(obj.delta))
+    : isPercent
+      ? formatPercent(Math.abs(obj.delta))
+      : formatNumber(Math.abs(obj.delta));
+
+  const deltaClass = getDeltaClass(label, obj);
+
+  return `
+    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-slate-400 text-sm">${label}</div>
+        <span class="text-xs px-2 py-1 rounded-full ${getBadgeClass(obj.status)}">${obj.status}</span>
+      </div>
+      <div class="text-3xl font-bold mb-2">${current}</div>
+      <div class="text-sm text-slate-400 mb-1">Prev: ${previous}</div>
+      <div class="text-sm ${deltaClass}">
+        ${directionArrow(obj.direction)} ${delta} (${obj.change_pct}%)
+      </div>
+    </div>
+  `;
+}
 
     function highlightCard(title, item, isCurrency = false) {
       if (!item) {
